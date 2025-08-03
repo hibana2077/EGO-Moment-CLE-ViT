@@ -5,6 +5,7 @@ A PyTorch implementation of EGO-Moment-CLE-ViT, combining CLE-ViT (dual-view sel
 ## Architecture Overview
 
 The model integrates three key components:
+
 - **CLE-ViT Backbone**: Dual-stream Vision Transformer with anchor/positive view generation
 - **Graph Polynomial Fusion (GPF)**: EGO-style learnable graph fusion with non-negative polynomial coefficients
 - **Moment Head**: Graph-weighted high-order moment pooling with iSQRT-COV and Tensor-Sketch
@@ -94,21 +95,25 @@ The model is configured via YAML files. Key sections include:
 ## Key Features
 
 ### Graph Polynomial Fusion (GPF)
+
 - Learnable non-negative polynomial coefficients
 - Hadamard powers for element-wise graph operations  
 - PSD enforcement for stability
 
 ### Moment Pooling
+
 - Graph-weighted second and third-order moment computation
 - iSQRT-COV for robust covariance estimation
 - Tensor-Sketch for efficient high-dimensional operations
 
 ### CLE-ViT Backbone
+
 - Dual-stream processing with anchor/positive views
 - Positive view generation via masking and shuffling
 - Support for various ViT architectures (Swin, DeiT, etc.)
 
 ### Multi-view Learning
+
 - Instance-level triplet loss for feature alignment
 - Kernel alignment loss (CKA) for representation consistency
 - Hierarchical feature fusion
@@ -134,6 +139,7 @@ The implementation supports multiple configurations:
 ## Dataset
 
 The implementation uses the UFG dataset format. The dataset loader (`src/dataset/ufgvc.py`) handles:
+
 - Multiple split support (train/val/test)
 - Automatic data downloading
 - Flexible augmentation pipelines
@@ -142,6 +148,7 @@ The implementation uses the UFG dataset format. The dataset loader (`src/dataset
 ## Evaluation
 
 The evaluation script provides:
+
 - Standard classification metrics (accuracy, per-class accuracy)
 - Feature visualization (t-SNE, UMAP)
 - Confusion matrices
@@ -152,6 +159,7 @@ The evaluation script provides:
 ## Implementation Notes
 
 See `docs/note.md` for detailed implementation notes including:
+
 - Architecture design decisions
 - Key implementation details
 - Module interactions
