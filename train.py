@@ -85,7 +85,7 @@ except ImportError:
     warnings.filterwarnings('ignore', category=UserWarning, module='wandb')
 
 try:
-    from torch.cuda.amp import GradScaler, autocast
+    from torch.amp import GradScaler, autocast
     HAS_AMP = True
 except ImportError:
     HAS_AMP = False
