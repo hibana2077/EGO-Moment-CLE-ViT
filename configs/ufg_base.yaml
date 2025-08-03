@@ -1,0 +1,159 @@
+# EGO-Moment-CLE-ViT Configuration
+# Base configuration for Ultra-Fine-Grained Visual Classification
+
+# Model Configuration
+model:
+  name: "EGOMomentCLEViT"
+  backbone_name: "swin_base_patch4_window7_224"  # timm model name
+  pretrained: true
+  num_classes: null  # Will be set based on dataset
+  
+  # Graph Polynomial Fusion (GPF) settings
+  gpf:
+    degree_p: 2
+    degree_q: 2
+    similarity: "cosine"  # "cosine" or "dot"
+    symmetric_enforce: true
+    coeff_init: "uniform"  # "uniform", "xavier", "identity"
+  
+  # Moment Head settings
+  moment:
+    d_out: 1024
+    use_third_order: true
+    isqrt_iterations: 5
+    sketch_dim: 4096
+    eps: 1.0e-5
+  
+  # Classifier Head settings
+  classifier:
+    fusion_type: "concat"  # "concat", "add", "bilinear" 
+    hidden_dim: null  # Will be auto-determined if null
+    dropout: 0.1
+    use_batch_norm: true
+
+# Training Configuration
+training:
+  # Optimizer settings
+  optimizer:
+    name: "adamw"
+    lr: 3.0e-4
+    weight_decay: 0.05
+    betas: [0.9, 0.999]
+    eps: 1.0e-8
+  
+  # Learning rate scheduler
+  scheduler:
+    name: "cosine"
+    warmup_epochs: 5
+    min_lr: 1.0e-6
+    warmup_lr: 1.0e-6
+  
+  # Loss weights
+  loss:
+    lambda_triplet: 1.0
+    lambda_align: 0.1
+    margin: 0.3
+    
+  # Training parameters
+  epochs: 120
+  batch_size: 64
+  accumulation_steps: 1  # Gradient accumulation
+  
+  # Mixed precision
+  amp: true
+  grad_clip: 1.0
+  
+  # Validation
+  val_frequency: 1  # Validate every N epochs
+  save_frequency: 10  # Save checkpoint every N epochs
+
+# Data Configuration
+data:
+  # CLE-ViT data transforms
+  input_size: 448
+  resize_size: 600
+  
+  # CLE-ViT positive view augmentation
+  mask_ratio: [0.15, 0.45]  # [min, max] masking ratio
+  grid_size: 4  # Grid size for shuffling
+  
+  # Standard augmentations
+  horizontal_flip: 0.5
+  color_jitter:
+    brightness: 0.2
+    contrast: 0.2
+    saturation: 0.2
+    hue: 0.1
+  rotation: 10
+  
+  # Normalization (ImageNet stats)
+  mean: [0.485, 0.456, 0.406]
+  std: [0.229, 0.224, 0.225]
+  
+  # Data loading
+  num_workers: 4
+  pin_memory: true
+  persistent_workers: true
+
+# Dataset Configuration
+dataset:
+  name: "cotton80"  # UFG dataset name
+  root: "./data"
+  download: true
+  
+  # Train/val split
+  train_split: 0.8
+  val_split: 0.2
+  random_seed: 42
+
+# Experiment Configuration
+experiment:
+  name: "ego_moment_clevit_base"
+  output_dir: "./outputs"
+  save_dir: "./checkpoints"
+  log_dir: "./logs"
+  
+  # Logging
+  log_frequency: 100  # Log every N iterations
+  wandb:
+    enabled: false
+    project: "ego-moment-clevit"
+    entity: null
+  
+  # Reproducibility
+  seed: 42
+  deterministic: true
+  
+  # Device
+  device: "cuda"  # "cuda", "cpu", "auto"
+  gpu_ids: [0]  # List of GPU IDs to use
+
+# Evaluation Configuration
+evaluation:
+  metrics: ["top1", "top5", "mean_per_class"]
+  save_predictions: false
+  save_features: false
+  
+  # Test-time augmentation
+  tta:
+    enabled: false
+    num_crops: 3
+    scales: [0.9, 1.0, 1.1]
+
+# Ablation Study Configuration
+ablation:
+  enabled: false
+  
+  # Components to ablate
+  components:
+    - "no_gpf"        # Disable GPF (use identity graph)
+    - "no_moment"     # Disable moment pooling (CLS only)
+    - "no_third"      # Disable third-order moments
+    - "no_alignment"  # Disable alignment loss
+    - "basic_fusion"  # Use simple average instead of polynomial fusion
+  
+  # Hyperparameter sweeps
+  hyperparameters:
+    gpf_degrees: [[1,1], [2,1], [2,2], [3,2]]
+    lambda_align: [0.0, 0.05, 0.1, 0.2]
+    moment_d_out: [512, 1024, 2048]
