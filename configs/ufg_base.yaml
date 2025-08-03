@@ -70,8 +70,8 @@ training:
 # Data Configuration
 data:
   # CLE-ViT data transforms
-  input_size: 448
-  resize_size: 600
+  input_size: 224
+  resize_size: 256
   
   # CLE-ViT positive view augmentation
   mask_ratio: [0.15, 0.45]  # [min, max] masking ratio

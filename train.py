@@ -25,12 +25,55 @@ from typing import Dict, List, Tuple, Optional, Any
 import warnings
 
 # Add src to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+# sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from models import EGOMomentCLEViT, CLEViTDataTransforms
-from losses import TripletLoss, KernelAlignmentLoss
-from utils import set_seed, count_parameters, plot_training_curves
-from dataset.ufgvc import UFGVCDataset
+from src.models import EGOMomentCLEViT, CLEViTDataTransforms
+from src.losses import TripletLoss, KernelAlignmentLoss
+from src.utils import set_seed, count_parameters, plot_training_curves
+from src.dataset.ufgvc import UFGVCDataset
+
+
+class DualViewDataset:
+    """
+    Wrapper dataset that handles dual-view transforms for CLE-ViT
+    """
+    def __init__(self, base_dataset, dual_transform):
+        self.base_dataset = base_dataset
+        self.dual_transform = dual_transform
+        # Store original transform and disable it on base dataset
+        self.original_transform = getattr(base_dataset.dataset if hasattr(base_dataset, 'dataset') else base_dataset, 'transform', None)
+        if hasattr(base_dataset, 'dataset'):
+            base_dataset.dataset.transform = None
+        else:
+            base_dataset.transform = None
+    
+    def __len__(self):
+        return len(self.base_dataset)
+    
+    def __getitem__(self, idx):
+        # Get raw image and label from base dataset (without any transform)
+        image, label = self.base_dataset[idx]
+        
+        # Apply dual-view transform if provided
+        if self.dual_transform:
+            anchor, positive = self.dual_transform(image)
+            return anchor, positive, label
+        else:
+            # For cases without dual transform, apply original transform if it existed
+            if self.original_transform:
+                transformed = self.original_transform(image)
+                return transformed, transformed, label
+            else:
+                return image, image, label
+    
+    @property
+    def classes(self):
+        if hasattr(self.base_dataset, 'classes'):
+            return self.base_dataset.classes
+        elif hasattr(self.base_dataset, 'dataset') and hasattr(self.base_dataset.dataset, 'classes'):
+            return self.base_dataset.dataset.classes
+        else:
+            return []
 
 # Optional dependencies
 try:
@@ -58,8 +101,8 @@ class Trainer:
     
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.device = self._setup_device()
         self.logger = self._setup_logging()
+        self.device = self._setup_device()
         
         # Set random seed
         set_seed(config['experiment']['seed'])
@@ -172,12 +215,12 @@ class Trainer:
             is_training=False
         )
         
-        # Load dataset
+        # Load base dataset without transforms (we'll apply them in the wrapper)
         full_dataset = UFGVCDataset(
             dataset_name=dataset_config['name'],
             root=dataset_config['root'],
             split='train',  # We'll split manually
-            transform=None,  # Will be set per split
+            transform=None,  # No transform here, we'll use the wrapper
             download=dataset_config['download']
         )
         
@@ -189,13 +232,13 @@ class Trainer:
         generator = torch.Generator().manual_seed(dataset_config['random_seed'])
         train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size], generator=generator)
         
-        # Set transforms for each split
-        train_dataset.dataset.transform = train_transforms
-        val_dataset.dataset.transform = val_transforms
+        # Wrap datasets with dual-view transforms
+        train_wrapped = DualViewDataset(train_dataset, train_transforms)
+        val_wrapped = DualViewDataset(val_dataset, val_transforms)
         
         # Create data loaders
         self.train_loader = DataLoader(
-            train_dataset,
+            train_wrapped,
             batch_size=self.config['training']['batch_size'],
             shuffle=True,
             num_workers=data_config['num_workers'],
@@ -204,7 +247,7 @@ class Trainer:
         )
         
         self.val_loader = DataLoader(
-            val_dataset,
+            val_wrapped,
             batch_size=self.config['training']['batch_size'],
             shuffle=False,
             num_workers=data_config['num_workers'],
@@ -213,12 +256,12 @@ class Trainer:
         )
         
         # Update num_classes in config
-        self.config['model']['num_classes'] = full_dataset.num_classes
+        self.config['model']['num_classes'] = len(full_dataset.classes)
         
         self.logger.info(f"Dataset: {dataset_config['name']}")
-        self.logger.info(f"Train samples: {len(train_dataset)}")
-        self.logger.info(f"Val samples: {len(val_dataset)}")
-        self.logger.info(f"Num classes: {full_dataset.num_classes}")
+        self.logger.info(f"Train samples: {len(train_wrapped)}")
+        self.logger.info(f"Val samples: {len(val_wrapped)}")
+        self.logger.info(f"Num classes: {len(full_dataset.classes)}")
     
     def setup_model(self):
         """Setup model, optimizer, and scheduler"""
@@ -300,11 +343,8 @@ class Trainer:
         pbar = tqdm(self.train_loader, desc=f"Epoch {self.current_epoch}")
         
         for batch_idx, batch in enumerate(pbar):
-            # Handle batch format from UFG dataset
-            if len(batch) == 4:  # anchor, positive, label, idx
-                anchor, positive, labels, _ = batch
-            else:  # Standard format
-                anchor, positive, labels = batch
+            # Batch format is always (anchor, positive, labels) from DualViewDataset
+            anchor, positive, labels = batch
             
             anchor = anchor.to(self.device, non_blocking=True)
             positive = positive.to(self.device, non_blocking=True)
@@ -381,11 +421,8 @@ class Trainer:
         
         with torch.no_grad():
             for batch in tqdm(self.val_loader, desc="Validating"):
-                # Handle batch format
-                if len(batch) == 4:
-                    anchor, positive, labels, _ = batch
-                else:
-                    anchor, positive, labels = batch
+                # Batch format is always (anchor, positive, labels) from DualViewDataset
+                anchor, positive, labels = batch
                 
                 anchor = anchor.to(self.device, non_blocking=True)
                 positive = positive.to(self.device, non_blocking=True)
