@@ -82,6 +82,7 @@ try:
 except ImportError:
     HAS_WANDB = False
     warnings.warn("wandb not available. Logging to wandb disabled.")
+    warnings.filterwarnings('ignore', category=UserWarning, module='wandb')
 
 try:
     from torch.cuda.amp import GradScaler, autocast
