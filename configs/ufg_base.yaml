@@ -12,9 +12,9 @@ model:
   gpf:
     degree_p: 2
     degree_q: 2
-    similarity: "cosine"  # "cosine" or "dot"
+    similarity: "dot"  # "cosine" or "dot"
     symmetric_enforce: true
-    coeff_init: "uniform"  # "uniform", "xavier", "identity"
+    coeff_init: "xavier"  # "uniform", "xavier", "identity"
   
   # Moment Head settings
   moment:
