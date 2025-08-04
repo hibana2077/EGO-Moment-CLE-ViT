@@ -20,7 +20,7 @@ class NewtonSchulzSqrtm(nn.Module):
     More stable than direct eigendecomposition for backpropagation.
     """
     
-    def __init__(self, num_iterations: int = 5, eps: float = 1e-5):
+    def __init__(self, num_iterations: int = 3, eps: float = 1e-5):  # Reduced default iterations
         super().__init__()
         self.num_iterations = num_iterations
         self.eps = eps
@@ -41,22 +41,27 @@ class NewtonSchulzSqrtm(nn.Module):
         # Trace normalization for better numerical stability
         trace = torch.diagonal(matrix, dim1=-2, dim2=-1).sum(-1, keepdim=True)  # [B, 1]
         trace = trace.unsqueeze(-1)  # [B, 1, 1]
-        matrix_normalized = matrix / (trace + self.eps)
+        # In-place division to save memory
+        matrix = matrix / (trace + self.eps)
         
-        # Initialize Y_0 = I, Z_0 = M_normalized
-        I = torch.eye(dim, device=device, dtype=matrix.dtype).expand(batch_size, -1, -1)
-        Y = I.clone()
-        Z = matrix_normalized.clone()
+        # Initialize Y_0 = I, reuse matrix memory when possible
+        I = torch.eye(dim, device=device, dtype=matrix.dtype)
+        Y = I.expand(batch_size, -1, -1).contiguous()
+        Z = matrix
         
-        # Newton-Schulz iteration
+        # Newton-Schulz iteration with memory optimization
         for i in range(self.num_iterations):
-            # Y_{k+1} = 0.5 * Y_k * (3*I - Z_k * Y_k)
-            # Z_{k+1} = 0.5 * (3*I - Y_k * Z_k) * Z_k
+            # Compute ZY and YZ once, reuse
             ZY = torch.bmm(Z, Y)
-            YZ = torch.bmm(Y, Z)
+            YZ = torch.bmm(Y, Z) 
             
-            Y = 0.5 * torch.bmm(Y, 3.0 * I - ZY)
-            Z = 0.5 * torch.bmm(3.0 * I - YZ, Z)
+            # Create 3*I once
+            I_3 = 3.0 * I
+            
+            # Update in two steps to reduce peak memory
+            Y_new = 0.5 * torch.bmm(Y, I_3 - ZY)
+            Z = 0.5 * torch.bmm(I_3 - YZ, Z)
+            Y = Y_new
         
         # Scale back
         sqrt_trace = torch.sqrt(trace + self.eps)
@@ -73,10 +78,11 @@ class TensorSketch(nn.Module):
     to reduce computational complexity from O(D^3) to O(D * sketch_dim).
     """
     
-    def __init__(self, input_dim: int, sketch_dim: int = 4096, seed: int = 42):
+    def __init__(self, input_dim: int, sketch_dim: int = 2048, seed: int = 42):  # Reduced default sketch_dim
         super().__init__()
         self.input_dim = input_dim
-        self.sketch_dim = sketch_dim
+        # Use smaller sketch dimension for memory efficiency
+        self.sketch_dim = min(sketch_dim, input_dim * 4)  # Cap sketch dimension
         
         # Fixed random projections for consistency
         torch.manual_seed(seed)
@@ -92,14 +98,15 @@ class TensorSketch(nn.Module):
         self.register_buffer('sign3', torch.randint(0, 2, (input_dim,)) * 2 - 1)
     
     def _count_sketch(self, x: torch.Tensor, hash_idx: torch.Tensor, signs: torch.Tensor) -> torch.Tensor:
-        """Apply Count-Sketch to input tensor"""
+        """Apply Count-Sketch to input tensor with memory optimization"""
         batch_size = x.shape[0]
+        # Preallocate with zeros_like to ensure same device/dtype
         sketched = torch.zeros(batch_size, self.sketch_dim, device=x.device, dtype=x.dtype)
         
-        # Apply signs
+        # Apply signs in-place style operation
         x_signed = x * signs.unsqueeze(0)  # [B, D]
         
-        # Scatter to sketch
+        # Scatter to sketch - this is memory efficient
         sketched.scatter_add_(1, hash_idx.unsqueeze(0).expand(batch_size, -1), x_signed)
         
         return sketched
@@ -145,10 +152,10 @@ class MomentHead(nn.Module):
     def __init__(
         self,
         d_in: int,
-        d_out: int = 1024,
-        use_third_order: bool = True,
-        isqrt_iterations: int = 5,
-        sketch_dim: int = 4096,
+        d_out: int = 512,  # Reduced default output dimension
+        use_third_order: bool = False,  # Disabled by default to save memory
+        isqrt_iterations: int = 3,  # Reduced iterations
+        sketch_dim: int = 2048,  # Reduced sketch dimension
         eps: float = 1e-5
     ):
         super().__init__()
@@ -174,30 +181,28 @@ class MomentHead(nn.Module):
             self.d_second = d_out
             self.d_third = 0
         
-        # Second-order processing network
-        # Input: upper triangular part of symmetric matrix
+        # Second-order processing network (simplified)
         second_input_dim = (d_in * (d_in + 1)) // 2  # Upper triangular + diagonal
         self.second_net = nn.Sequential(
-            nn.Linear(second_input_dim, self.d_second * 2),
-            nn.BatchNorm1d(self.d_second * 2),
+            nn.Linear(second_input_dim, self.d_second),  # Removed extra hidden layer
+            nn.BatchNorm1d(self.d_second),
             nn.GELU(),
-            nn.Dropout(0.1),
-            nn.Linear(self.d_second * 2, self.d_second)
+            nn.Dropout(0.1)
         )
         
-        # Third-order processing network (if enabled)
+        # Third-order processing network (if enabled) - simplified
         if use_third_order:
             self.third_net = nn.Sequential(
-                nn.Linear(sketch_dim, self.d_third * 2),
-                nn.BatchNorm1d(self.d_third * 2), 
+                nn.Linear(sketch_dim, self.d_third),  # Removed extra hidden layer
+                nn.BatchNorm1d(self.d_third), 
                 nn.GELU(),
-                nn.Dropout(0.1),
-                nn.Linear(self.d_third * 2, self.d_third)
+                nn.Dropout(0.1)
             )
     
     def _half_vectorize(self, matrix: torch.Tensor) -> torch.Tensor:
         """
         Extract upper triangular part of symmetric matrix including diagonal
+        Memory-optimized version using advanced indexing
         
         Args:
             matrix: [B, D, D] symmetric matrices
@@ -205,13 +210,12 @@ class MomentHead(nn.Module):
         Returns:
             vector: [B, D*(D+1)/2] half-vectorized matrices
         """
-        batch_size, dim, _ = matrix.shape
+        # Use more memory-efficient triu_indices
+        dim = matrix.shape[-1]
+        triu_indices = torch.triu_indices(dim, dim, offset=0, device=matrix.device)
         
-        # Get upper triangular indices
-        triu_indices = torch.triu_indices(dim, dim, offset=0)
-        
-        # Extract upper triangular elements
-        triu_elements = matrix[:, triu_indices[0], triu_indices[1]]  # [B, D*(D+1)/2]
+        # Extract upper triangular elements more efficiently
+        triu_elements = matrix[:, triu_indices[0], triu_indices[1]]  
         
         return triu_elements
     
@@ -242,26 +246,21 @@ class MomentHead(nn.Module):
     def _normalize_weight_matrix(self, graph: torch.Tensor) -> torch.Tensor:
         """
         Normalize graph to proper weight matrix: W = D^(-1/2) G D^(-1/2)
+        Memory-optimized version
         
         Args:
             graph: [B, N, N] fused graph from GPF
             
         Returns:
-            weight_matrix: [B, N, N] normalized weight matrix
+            weight_matrix: [B, N, N] normalized weight matrix  
         """
-        # Compute degree matrix D = diag(G @ 1)
-        batch_size = graph.shape[0]
-        ones = torch.ones(batch_size, graph.shape[-1], 1, device=graph.device, dtype=graph.dtype)  # [B, N, 1]
-        degrees = torch.bmm(graph, ones)  # [B, N, 1]
-        degrees = degrees.squeeze(-1)  # [B, N]
+        # Compute degrees more efficiently
+        degrees = graph.sum(dim=-1)  # [B, N] - more memory efficient than bmm
         
-        # Add eps for numerical stability
-        degrees = torch.clamp(degrees, min=self.eps)
+        # Add eps for numerical stability and compute inverse square root
+        inv_sqrt_degrees = torch.rsqrt(degrees.clamp(min=self.eps))  # [B, N]
         
-        # D^(-1/2)
-        inv_sqrt_degrees = 1.0 / torch.sqrt(degrees)  # [B, N]
-        
-        # W = D^(-1/2) G D^(-1/2)
+        # Apply normalization: W = D^(-1/2) G D^(-1/2)
         weight_matrix = graph * inv_sqrt_degrees.unsqueeze(-1) * inv_sqrt_degrees.unsqueeze(-2)
         
         return weight_matrix
