@@ -16,7 +16,7 @@ import yaml
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 import numpy as np
 from tqdm import tqdm
 import logging
@@ -216,22 +216,22 @@ class Trainer:
             is_training=False
         )
         
-        # Load base dataset without transforms (we'll apply them in the wrapper)
-        full_dataset = UFGVCDataset(
+        # Load train and val datasets separately (using dataset's predefined splits)
+        train_dataset = UFGVCDataset(
             dataset_name=dataset_config['name'],
             root=dataset_config['root'],
-            split='train',  # We'll split manually
+            split='train',
             transform=None,  # No transform here, we'll use the wrapper
             download=dataset_config['download']
         )
         
-        # Split dataset
-        total_size = len(full_dataset)
-        train_size = int(dataset_config['train_split'] * total_size)
-        val_size = total_size - train_size
-        
-        generator = torch.Generator().manual_seed(dataset_config['random_seed'])
-        train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size], generator=generator)
+        val_dataset = UFGVCDataset(
+            dataset_name=dataset_config['name'],
+            root=dataset_config['root'],
+            split='val',
+            transform=None,  # No transform here, we'll use the wrapper
+            download=False  # Already downloaded
+        )
         
         # Wrap datasets with dual-view transforms
         train_wrapped = DualViewDataset(train_dataset, train_transforms)
@@ -257,12 +257,12 @@ class Trainer:
         )
         
         # Update num_classes in config
-        self.config['model']['num_classes'] = len(full_dataset.classes)
+        self.config['model']['num_classes'] = len(train_dataset.classes)
         
         self.logger.info(f"Dataset: {dataset_config['name']}")
         self.logger.info(f"Train samples: {len(train_wrapped)}")
         self.logger.info(f"Val samples: {len(val_wrapped)}")
-        self.logger.info(f"Num classes: {len(full_dataset.classes)}")
+        self.logger.info(f"Num classes: {len(train_dataset.classes)}")
     
     def setup_model(self):
         """Setup model, optimizer, and scheduler"""

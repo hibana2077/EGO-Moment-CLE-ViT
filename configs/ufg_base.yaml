@@ -61,7 +61,7 @@ training:
   
   # Mixed precision
   amp: false
-  grad_clip: 50.0
+  grad_clip: 1
   
   # Validation
   val_frequency: 1  # Validate every N epochs
@@ -100,11 +100,6 @@ dataset:
   name: "cotton80"  # UFG dataset name
   root: "./data"
   download: true
-  
-  # Train/val split
-  train_split: 0.8
-  val_split: 0.2
-  random_seed: 42
 
 # Experiment Configuration
 experiment:
