@@ -353,7 +353,7 @@ class Trainer:
             
             # Forward pass
             if train_config['amp'] and self.scaler is not None:
-                with autocast():
+                with autocast(device_type=self.device.type):
                     output = self.model(anchor, positive, labels)
                     loss = output['loss']
             else:
