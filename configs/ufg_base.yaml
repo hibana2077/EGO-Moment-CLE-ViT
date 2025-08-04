@@ -4,7 +4,7 @@
 # Model Configuration
 model:
   name: "EGOMomentCLEViT"
-  backbone_name: "tiny_vit_21m_224.dist_in22k_ft_in1k"  # timm model name
+  backbone_name: "tiny_vit_11m_224.dist_in22k_ft_in1k"  # timm model name
   pretrained: true
   num_classes: null  # Will be set based on dataset
   
