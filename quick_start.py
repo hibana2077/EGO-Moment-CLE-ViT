@@ -19,7 +19,7 @@ from utils import set_seed, get_model_info
 
 def quick_demo():
     """Run a quick demonstration of the model"""
-    print("🚀 EGO-Moment-CLE-ViT Quick Start Demo")
+    print("[*] EGO-Moment-CLE-ViT Quick Start Demo")
     print("=" * 50)
     
     # Set seed for reproducibility
@@ -32,11 +32,11 @@ def quick_demo():
             config = yaml.safe_load(f)
         print("✓ Configuration loaded")
     else:
-        print("⚠️  Config file not found, using defaults")
+        print("[-] Config file not found, using defaults")
         config = {}
     
     # Create model
-    print("\n📦 Creating Model...")
+    print("\n[*] Creating Model...")
     model = EGOMomentCLEViT(
         num_classes=10,
         backbone_name='vit_tiny_patch16_224',
@@ -45,12 +45,12 @@ def quick_demo():
     
     # Model info
     info = get_model_info(model)
-    print(f"✓ Model created with {info['total_params']:,} parameters")
+    print(f"[+] Model created with {info['total_params']:,} parameters")
     print(f"  - Trainable: {info['trainable_params']:,}")
     print(f"  - Model size: {info['model_size_mb']:.1f} MB")
     
     # Create dummy data
-    print("\n🎯 Testing Forward Pass...")
+    print("\n[*] Testing Forward Pass...")
     batch_size = 4
     anchor = torch.randn(batch_size, 3, 224, 224)
     positive = torch.randn(batch_size, 3, 224, 224)
@@ -61,7 +61,7 @@ def quick_demo():
     with torch.no_grad():
         output = model(anchor, positive, labels=labels, return_features=True)
     
-    print(f"✓ Forward pass successful")
+    print(f"[+] Forward pass successful")
     print(f"  - Logits shape: {output['logits'].shape}")
     print(f"  - Features available: {list(output['features'].keys())}")
     
@@ -71,14 +71,14 @@ def quick_demo():
         for loss_name, loss_value in output['loss_dict'].items():
             print(f"    • {loss_name}: {loss_value.item():.4f}")
     
-    print("\n🎨 Data Transforms...")
+    print("\n[*] Data Transforms...")
     transforms = CLEViTDataTransforms(
         input_size=224,
         is_training=True
     )
-    print("✓ Data transforms created")
+    print("[+] Data transforms created")
     
-    print("\n✨ Quick demo completed successfully!")
+    print("\n[+] Quick demo completed successfully!")
     print("\nNext steps:")
     print("1. Run 'python train.py --config configs/ufg_base.yaml' to train")
     print("2. Run 'python eval.py --config configs/ufg_base.yaml --checkpoint path/to/checkpoint.pth' to evaluate")
@@ -87,7 +87,7 @@ def quick_demo():
 
 def show_architecture():
     """Show model architecture overview"""
-    print("\n🏗️  Architecture Overview")
+    print("\n[*] Architecture Overview")
     print("=" * 50)
     
     model = EGOMomentCLEViT(
@@ -97,14 +97,14 @@ def show_architecture():
     )
     
     # Print key components
-    print("📋 Key Components:")
+    print("[*] Key Components:")
     print(f"  1. Backbone: {model.backbone}")
     print(f"  2. GPF: {model.gpf}")
     print(f"  3. Moment Head: {model.moment_head}")
     print(f"  4. Classifier: {model.classifier}")
     
     # Show configuration
-    print(f"\n⚙️  Configuration:")
+    print(f"\n[*] Configuration:")
     print(f"  - GPF degrees: (p={model.gpf.degree_p}, q={model.gpf.degree_q})")
     print(f"  - Moment output dim: {model.moment_head.d_out}")
     print(f"  - Use third-order: {model.moment_head.use_third_order}")
@@ -113,7 +113,7 @@ def show_architecture():
 
 def check_requirements():
     """Check if all required packages are available"""
-    print("\n🔍 Checking Requirements...")
+    print("\n[*] Checking Requirements...")
     print("=" * 50)
     
     required_packages = [
@@ -135,23 +135,23 @@ def check_requirements():
     for package, name in required_packages:
         try:
             __import__(package)
-            print(f"✓ {name}")
+            print(f"[+] {name}")
         except ImportError:
-            print(f"✗ {name} - REQUIRED")
+            print(f"[-] {name} - REQUIRED")
             all_good = False
     
     print("\nOptional packages:")
     for package, name in optional_packages:
         try:
             __import__(package)
-            print(f"✓ {name}")
+            print(f"[+] {name}")
         except ImportError:
-            print(f"○ {name} - optional")
+            print(f"[o] {name} - optional")
     
     if all_good:
-        print("\n🎉 All required packages are available!")
+        print("\n[+] All required packages are available!")
     else:
-        print("\n⚠️  Some required packages are missing. Please install them.")
+        print("\n[-] Some required packages are missing. Please install them.")
         print("Run: pip install -r requirements.txt")
 
 

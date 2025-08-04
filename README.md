@@ -59,14 +59,32 @@ cd EGO-Moment-CLE-ViT
 pip install -r requirements.txt
 ```
 
-### 2. Test Implementation
+### 2. Download Datasets
+
+Use the built-in CLI tool to download datasets:
+
+```bash
+# List available datasets
+python download_dataset.py --list
+
+# Download a specific dataset
+python download_dataset.py --dataset cotton80
+
+# Download to custom directory
+python download_dataset.py --dataset cotton80 --root /path/to/data
+
+# Get dataset information
+python download_dataset.py --info cotton80
+```
+
+### 3. Test Implementation
 
 ```bash
 # Run basic implementation tests
 python test_implementation.py
 ```
 
-### 3. Training
+### 4. Training
 
 ```bash
 # Train with default configuration
@@ -76,7 +94,7 @@ python train.py --config configs/ufg_base.yaml
 python train.py --config configs/ufg_base.yaml --batch_size 32 --learning_rate 0.001
 ```
 
-### 4. Evaluation
+### 5. Evaluation
 
 ```bash
 # Evaluate trained model
