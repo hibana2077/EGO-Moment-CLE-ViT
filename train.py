@@ -480,6 +480,10 @@ class Trainer:
         for epoch in range(1, num_epochs + 1):
             self.current_epoch = epoch
             
+            # Update scheduler
+            if self.scheduler:
+                self.scheduler.step()
+
             # Train
             train_loss, train_acc = self.train_epoch()
             self.train_losses.append(train_loss)
@@ -516,9 +520,7 @@ class Trainer:
                 if epoch % save_freq == 0 or is_best:
                     self.save_checkpoint(is_best=is_best)
             
-            # Update scheduler
-            if self.scheduler:
-                self.scheduler.step()
+            
         
         # Save final checkpoint
         self.save_checkpoint()
