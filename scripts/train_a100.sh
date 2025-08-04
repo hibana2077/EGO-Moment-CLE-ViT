@@ -3,7 +3,7 @@
 #PBS -q dgxa100
 #PBS -l ngpus=1            
 #PBS -l ncpus=16            
-#PBS -l mem=20GB           
+#PBS -l mem=32GB           
 #PBS -l walltime=00:60:00  
 #PBS -l wd                  
 #PBS -l storage=scratch/rp06
