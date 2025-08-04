@@ -60,7 +60,7 @@ training:
   accumulation_steps: 1  # Gradient accumulation
   
   # Mixed precision
-  amp: true
+  amp: false
   grad_clip: 1.0
   
   # Validation
